@@ -1,3 +1,5 @@
+"use client";
+
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -17,18 +19,111 @@ import { Badge } from '@/components/ui/badge';
 import PublicHeader from '@/components/layout/public-header';
 import Footer from '@/components/layout/footer';
 import { placeholderImages } from '@/lib/placeholder-images.json';
-import { organizations, news, events } from '@/lib/placeholder-data';
+import { useFirestoreCollection } from '@/hooks/use-firestore-collection';
+import type { Event, NewsArticle, Organization } from '@/lib/types';
+import { useCallback, useMemo } from 'react';
+import { useFirebase } from '@/lib/firebase-provider';
+import { type DocumentData, type QueryDocumentSnapshot } from 'firebase/firestore';
 
 const heroImage = placeholderImages.find((p) => p.id === 'hero-background');
 const getPlaceholderImage = (id: string) => placeholderImages.find((p) => p.id === id);
 
 export default function Home() {
-  const memberLogos = organizations
-    .filter((o) => o.isMember)
-    .slice(0, 5)
-    .map((org) => getPlaceholderImage(org.logoId));
-  const latestNews = news.slice(0, 3);
-  const upcomingEvents = events.slice(0, 2);
+  const { userRole } = useFirebase();
+  const mapOrganization = useCallback(
+    (doc: QueryDocumentSnapshot<DocumentData>): Organization => {
+      const data = doc.data() ?? {};
+      return {
+        id: doc.id,
+        name: data.name ?? 'Organización',
+        logoId: data.logoId,
+        logoUrl: data.logoUrl,
+        type: data.type ?? 'other',
+        description: data.description ?? '',
+        website: data.website ?? '#',
+        country: data.country ?? 'Costa Rica',
+        verticals: data.verticals ?? [],
+        stage: data.stage ?? 'growing',
+        needs: data.needs ?? [],
+        isMember: data.isMember ?? false,
+        membershipTier: data.membershipTier ?? 'basic',
+        createdAt: data.createdAt?.toDate?.() ?? new Date(),
+        updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
+      } as Organization;
+    },
+    []
+  );
+
+  const mapEvent = useCallback((doc: QueryDocumentSnapshot<DocumentData>): Event => {
+    const data = doc.data() ?? {};
+    return {
+      id: doc.id,
+      title: data.title ?? 'Evento',
+      description: data.description ?? '',
+      type: data.type ?? 'meetup',
+      mode: data.mode ?? 'onsite',
+      startDateTime: data.startDateTime?.toDate?.() ?? new Date(),
+      endDateTime: data.endDateTime?.toDate?.() ?? new Date(),
+      location: data.location ?? 'Por definir',
+      speakers: data.speakers ?? [],
+      isPublic: data.isPublic ?? true,
+      createdBy: data.createdBy ?? '',
+      createdAt: data.createdAt?.toDate?.() ?? new Date(),
+      updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
+    } as Event;
+  }, []);
+
+  const mapNews = useCallback((doc: QueryDocumentSnapshot<DocumentData>): NewsArticle => {
+    const data = doc.data() ?? {};
+    return {
+      id: doc.id,
+      title: data.title ?? 'Artículo',
+      category: data.category ?? 'Noticias',
+      date: data.date ?? new Date().toISOString(),
+      imageId: data.imageId,
+      imageUrl: data.imageUrl,
+    };
+  }, []);
+
+  const { data: organizations, loading: organizationsLoading } =
+    useFirestoreCollection<Organization>('organizations', mapOrganization, {
+      listen: true,
+    });
+
+  const { data: events, loading: eventsLoading } = useFirestoreCollection<Event>(
+    'events',
+    mapEvent,
+    { listen: true }
+  );
+
+  const { data: news, loading: newsLoading } = useFirestoreCollection<NewsArticle>(
+    'news',
+    mapNews,
+    { listen: true }
+  );
+
+  const memberLogos = useMemo(
+    () =>
+      organizations
+        .filter((o) => o.isMember)
+        .slice(0, 5)
+        .map((org) => {
+          const placeholder = org.logoId
+            ? getPlaceholderImage(org.logoId)
+            : null;
+          return {
+            id: org.id,
+            name: org.name,
+            url: org.logoUrl ?? placeholder?.imageUrl ?? '',
+            description: placeholder?.description ?? org.name,
+            hint: placeholder?.imageHint,
+          };
+        }),
+    [organizations]
+  );
+
+  const latestNews = useMemo(() => news.slice(0, 3), [news]);
+  const upcomingEvents = useMemo(() => events.slice(0, 2), [events]);
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -122,19 +217,21 @@ export default function Home() {
               Una comunidad diversa de startups, bancos, inversores y reguladores que forman el corazón del fintech en Costa Rica.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-8 md:gap-12">
-              {memberLogos.map((logo, index) =>
-                logo ? (
-                  <Image
-                    key={index}
-                    src={logo.imageUrl}
-                    alt={logo.description}
-                    width={150}
-                    height={50}
-                    className="object-contain"
-                    data-ai-hint={logo.imageHint}
-                  />
-                ) : null
+              {organizationsLoading && <p className="text-muted-foreground">Cargando miembros...</p>}
+              {!organizationsLoading && memberLogos.length === 0 && (
+                <p className="text-muted-foreground">Aún no hay organizaciones registradas.</p>
               )}
+              {memberLogos.map((logo) => (
+                <Image
+                  key={logo.id}
+                  src={logo.url}
+                  alt={logo.description}
+                  width={150}
+                  height={50}
+                  className="object-contain"
+                  data-ai-hint={logo.hint}
+                />
+              ))}
             </div>
           </div>
         </section>
@@ -144,19 +241,28 @@ export default function Home() {
           <div className="container mx-auto px-4">
             <h2 className="font-headline text-3xl font-bold text-center mb-12">Últimas Noticias</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {newsLoading && <p className="text-muted-foreground">Cargando noticias...</p>}
+              {!newsLoading && latestNews.length === 0 && (
+                <p className="text-muted-foreground">Aún no hay noticias publicadas.</p>
+              )}
               {latestNews.map((article) => {
-                const articleImage = getPlaceholderImage(article.imageId);
+                const articleImage =
+                  article.imageUrl || getPlaceholderImage(article.imageId ?? '')?.imageUrl;
+                const articleHint = getPlaceholderImage(article.imageId ?? '')?.imageHint;
+                const articleDescription =
+                  getPlaceholderImage(article.imageId ?? '')?.description ?? article.title;
+
                 return (
                   <Card key={article.id} className="overflow-hidden">
                     {articleImage && (
-                       <Image
-                         src={articleImage.imageUrl}
-                         alt={articleImage.description}
-                         width={600}
-                         height={400}
-                         className="w-full h-48 object-cover"
-                         data-ai-hint={articleImage.imageHint}
-                       />
+                      <Image
+                        src={articleImage}
+                        alt={articleDescription}
+                        width={600}
+                        height={400}
+                        className="w-full h-48 object-cover"
+                        data-ai-hint={articleHint}
+                      />
                     )}
                     <CardContent className="p-6">
                       <Badge variant="secondary" className="mb-2">{article.category}</Badge>
@@ -180,6 +286,10 @@ export default function Home() {
           <div className="container mx-auto px-4">
             <h2 className="font-headline text-3xl font-bold text-center mb-12">Próximos Eventos</h2>
             <div className="space-y-8 max-w-3xl mx-auto">
+              {eventsLoading && <p className="text-muted-foreground">Cargando eventos...</p>}
+              {!eventsLoading && upcomingEvents.length === 0 && (
+                <p className="text-muted-foreground">No hay eventos publicados por ahora.</p>
+              )}
               {upcomingEvents.map((event) => (
                 <Card key={event.id} className="flex flex-col md:flex-row items-center">
                   <div className="p-6 text-center md:border-r">
@@ -190,8 +300,12 @@ export default function Home() {
                     <Badge variant="default" className="mb-2 bg-accent text-accent-foreground">{event.type}</Badge>
                     <h3 className="font-headline text-xl font-semibold mb-2">{event.title}</h3>
                     <p className="text-muted-foreground mb-4">{event.description.substring(0, 100)}...</p>
-                    <Button asChild>
-                      <Link href="#">Ver Detalles y Registrarse</Link>
+                    <Button asChild variant={userRole === 'guest' ? 'outline' : 'default'}>
+                      <Link href={userRole === 'guest' ? '/login' : '#'}>
+                        {userRole === 'guest'
+                          ? 'Inicia sesión para registrarte'
+                          : 'Ver Detalles y Registrarse'}
+                      </Link>
                     </Button>
                   </div>
                 </Card>

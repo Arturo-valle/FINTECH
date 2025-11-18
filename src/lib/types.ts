@@ -28,7 +28,8 @@ export type OrganizationStage = 'idea' | 'mvp' | 'growing' | 'scaleup';
 export interface Organization {
   id: string;
   name: string;
-  logoId: string;
+  logoId?: string;
+  logoUrl?: string;
   type: OrganizationType;
   description: string;
   website: string;
@@ -169,5 +170,6 @@ export interface NewsArticle {
   title: string;
   category: string;
   date: string;
-  imageId: string;
+  imageId?: string;
+  imageUrl?: string;
 }

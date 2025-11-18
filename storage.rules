@@ -1,0 +1,26 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function hasValidAppCheck() {
+      return request.app != null;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function hasRole(roles) {
+      return isSignedIn() && request.auth.token.role in roles;
+    }
+
+    match /public/{allPaths=**} {
+      allow read: if hasValidAppCheck();
+      allow write: if false;
+    }
+
+    match /protected/{allPaths=**} {
+      allow read: if hasValidAppCheck() && isSignedIn();
+      allow write: if hasValidAppCheck() && hasRole(['association_admin', 'org_admin', 'super_admin']);
+    }
+  }
+}

@@ -1,3 +1,5 @@
+"use client";
+
 import { BookCopy, Download, FileText, Filter, Search } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -5,17 +7,42 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-
-const resources = [
-  { id: 1, title: 'Ley de Promoción de la Competencia y Defensa Efectiva del Consumidor', type: 'law', tags: ['AML', 'KYC'] },
-  { id: 2, title: 'Guía para la implementación de Sandbox Regulatorio', type: 'guideline', tags: ['sandbox', 'innovación'] },
-  { id: 3, title: 'Reglamento de Sociedades de Fondos de Inversión', type: 'regulation', tags: ['inversión', 'wealthtech'] },
-  { id: 4, title: 'Presentación: Open Banking en LATAM', type: 'slide', tags: ['open banking', 'pagos'] },
-];
-
-const allTags = ['AML', 'KYC', 'sandbox', 'innovación', 'inversión', 'wealthtech', 'open banking', 'pagos'];
+import { useCallback, useMemo } from 'react';
+import { useFirestoreCollection } from '@/hooks/use-firestore-collection';
+import type { Resource } from '@/lib/types';
+import { type DocumentData, type QueryDocumentSnapshot } from 'firebase/firestore';
+import { useFirebase } from '@/lib/firebase-provider';
 
 export default function ResourcesPage() {
+  const { userRole } = useFirebase();
+  const mapResource = useCallback((doc: QueryDocumentSnapshot<DocumentData>): Resource => {
+    const data = doc.data() ?? {};
+    return {
+      id: doc.id,
+      title: data.title ?? 'Recurso',
+      type: data.type ?? 'other',
+      tags: data.tags ?? [],
+      language: data.language ?? 'es',
+      storagePath: data.storagePath ?? '',
+      summary: data.summary ?? '',
+      publishedAt: data.publishedAt?.toDate?.() ?? new Date(),
+      createdBy: data.createdBy ?? '',
+      createdAt: data.createdAt?.toDate?.() ?? new Date(),
+      updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
+    } as Resource;
+  }, []);
+
+  const { data: resources, loading } = useFirestoreCollection<Resource>(
+    'resources',
+    mapResource,
+    { listen: true }
+  );
+
+  const allTags = useMemo(() => {
+    const tags = resources.flatMap((resource) => resource.tags || []);
+    return tags.length ? Array.from(new Set(tags)) : ['AML', 'KYC'];
+  }, [resources]);
+
   return (
     <div className="grid md:grid-cols-[250px_1fr] gap-8">
       <aside>
@@ -58,6 +85,10 @@ export default function ResourcesPage() {
             </p>
         </div>
         <div className="space-y-4">
+            {loading && <p className="text-muted-foreground">Cargando recursos...</p>}
+            {!loading && resources.length === 0 && (
+              <p className="text-muted-foreground">Todavía no hay recursos publicados.</p>
+            )}
             {resources.map(resource => (
                 <Card key={resource.id}>
                     <CardHeader className="flex flex-row items-center justify-between">
@@ -70,9 +101,9 @@ export default function ResourcesPage() {
                             </div>
                          </div>
                        </div>
-                       <Button variant="outline">
+                       <Button variant={userRole === 'guest' ? 'outline' : 'default'} disabled={userRole === 'guest'}>
                            <Download className="mr-2 h-4 w-4" />
-                           Descargar
+                           {userRole === 'guest' ? 'Solo miembros' : 'Descargar'}
                        </Button>
                     </CardHeader>
                 </Card>

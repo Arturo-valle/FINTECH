@@ -3,6 +3,7 @@ import { Poppins, Inter, Source_Code_Pro } from 'next/font/google';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
+import { FirebaseProvider } from '@/lib/firebase-provider';
 
 const fontPoppins = Poppins({
   subsets: ['latin'],
@@ -40,8 +41,10 @@ export default function RootLayout({
           fontSourceCodePro.variable
         )}
       >
-        {children}
-        <Toaster />
+        <FirebaseProvider>
+          {children}
+          <Toaster />
+        </FirebaseProvider>
       </body>
     </html>
   );
