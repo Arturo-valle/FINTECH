@@ -43,11 +43,9 @@ export default function RootLayout({
         )}
       >
         <FirebaseProvider>
-          <AuthProvider>
-            {children}
-            <Toaster />
-          </AuthProvider>
+          <AuthProvider>{children}</AuthProvider>
         </FirebaseProvider>
+        <Toaster />
       </body>
     </html>
   );
