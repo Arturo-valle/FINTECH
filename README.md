@@ -47,3 +47,17 @@ You can run the Firebase emulators to avoid hitting production services:
    ```bash
    firebase deploy --only firestore:rules,storage:rules
    ```
+
+## Development
+
+- Run the linter with Next.js defaults (configured via `.eslintrc.json`):
+
+  ```bash
+  npm run lint
+  ```
+
+- Run TypeScript type checks without emitting output:
+
+  ```bash
+  npm run typecheck
+  ```
