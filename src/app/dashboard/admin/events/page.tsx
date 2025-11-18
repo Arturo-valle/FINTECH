@@ -1,3 +1,5 @@
+"use client";
+
 import { MoreHorizontal, PlusCircle } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -24,10 +26,51 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { events } from '@/lib/placeholder-data';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useCallback } from 'react';
+import { useFirestoreCollection } from '@/hooks/use-firestore-collection';
+import type { Event } from '@/lib/types';
+import { type DocumentData, type QueryDocumentSnapshot } from 'firebase/firestore';
+import { useFirebase } from '@/lib/firebase-provider';
 
 export default function AdminEventsPage() {
+  const { userRole } = useFirebase();
+  const mapEvent = useCallback((doc: QueryDocumentSnapshot<DocumentData>): Event => {
+    const data = doc.data() ?? {};
+    return {
+      id: doc.id,
+      title: data.title ?? 'Evento',
+      description: data.description ?? '',
+      type: data.type ?? 'meetup',
+      mode: data.mode ?? 'onsite',
+      startDateTime: data.startDateTime?.toDate?.() ?? new Date(),
+      endDateTime: data.endDateTime?.toDate?.() ?? new Date(),
+      location: data.location ?? 'Por definir',
+      speakers: data.speakers ?? [],
+      isPublic: data.isPublic ?? true,
+      createdBy: data.createdBy ?? '',
+      createdAt: data.createdAt?.toDate?.() ?? new Date(),
+      updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
+    } as Event;
+  }, []);
+
+  const { data: events, loading } = useFirestoreCollection<Event>('events', mapEvent, {
+    listen: true,
+  });
+
+  const isAdmin = ['association_admin', 'super_admin'].includes(userRole);
+
+  if (!isAdmin) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Gestión de eventos</CardTitle>
+          <CardDescription>Acceso restringido a administradores de la asociación.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
   return (
     <Tabs defaultValue="all">
       <div className="flex items-center">
@@ -79,6 +122,18 @@ export default function AdminEventsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {loading && (
+                  <TableRow>
+                    <TableCell colSpan={6}>Cargando eventos...</TableCell>
+                  </TableRow>
+                )}
+                {!loading && events.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-muted-foreground">
+                      No hay eventos disponibles todavía.
+                    </TableCell>
+                  </TableRow>
+                )}
                 {events.map((event) => (
                   <TableRow key={event.id}>
                     <TableCell className="font-medium">{event.title}</TableCell>
