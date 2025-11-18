@@ -17,6 +17,7 @@ interface FirebaseContextValue {
   user: FirebaseUser | null;
   userRole: UserRole;
   appCheckToken: string | null;
+  authLoading: boolean;
 }
 
 const FirebaseContext = createContext<FirebaseContextValue | null>(null);
@@ -26,6 +27,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userRole, setUserRole] = useState<UserRole>('guest');
   const [appCheckToken, setAppCheckToken] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
     if (!appCheck) return;
@@ -44,6 +46,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
+      setAuthLoading(false);
 
       if (firebaseUser) {
         try {
@@ -63,8 +66,8 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   }, [auth]);
 
   const value = useMemo(
-    () => ({ app, auth, firestore, appCheck, user, userRole, appCheckToken }),
-    [app, auth, firestore, appCheck, user, userRole, appCheckToken]
+    () => ({ app, auth, firestore, appCheck, user, userRole, appCheckToken, authLoading }),
+    [app, auth, firestore, appCheck, user, userRole, appCheckToken, authLoading]
   );
 
   return <FirebaseContext.Provider value={value}>{children}</FirebaseContext.Provider>;
